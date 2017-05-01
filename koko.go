@@ -87,6 +87,39 @@ func addVxLanInterface(vxlan vxLan, devName string) error {
 	return nil
 }
 
+func getProcessNamespace(containerid string) (string, error) {
+
+	// Pick up the pid from docker inspect.
+	// Template the path to that
+
+	cli, err := client.NewEnvClient()
+	if err != nil {
+		err = fmt.Errorf("failed to do NewEnvClient: %v", err)
+		return "", err
+	}
+
+	cli.UpdateClientVersion("1.24")
+
+	json, err := cli.ContainerInspect(context.Background(), containerid)
+	if err != nil {
+		err = fmt.Errorf("failed to get container info: %v", err)
+		return "", err
+	}
+
+	/*
+
+	This would be nice to check, but, I'm not sure what to look for.
+
+	if json.State.Pid == nil {
+		err = fmt.Errorf("failed to get container info: %v", err)
+		return err, ""
+	}
+	*/
+
+	return "/proc/" + strconv.Itoa(json.State.Pid) + "/ns/net", nil
+
+}
+
 // getDockerContainerNS retrieves container's network namespace from
 // docker container id, given as containerID.
 func getDockerContainerNS(containerID string) (namespace string, err error) {
@@ -260,7 +293,7 @@ func parseDOption(s string) (veth vEth, err error) {
 		return
 	}
 
-	veth.nsName, err = getDockerContainerNS(n[0])
+	veth.nsName, err = getProcessNamespace(n[0])
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v", err)
 	}
